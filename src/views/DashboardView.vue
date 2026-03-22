@@ -1,30 +1,125 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import ExpenseModal from '../components/ExpenseModal.vue' // Importa o componente filho
+  import { ref, onMounted } from 'vue'
+  import { api } from '../services/api' // Importamos o nosso "telefone" para o Java
+  import ExpenseModal from '../components/ExpenseModal.vue'
+  import IncomeModal from '../components/IncomeModal.vue'
 
-// Dados do Dashboard (Mock)
-const userName = ref('Adrielle')
-const currentBalance = ref(6500.50)
-const monthlyIncome = ref(5000.00)
-const monthlyExpense = ref(1200.00)
+  // Estado inicial zerado (ou carregando)
+  const userName = ref('Usuário') // Em breve buscaremos o nome também
+  const currentBalance = ref(0)
+  const monthlyIncome = ref(0)
+  const monthlyExpense = ref(0)
 
-// Estado para controlar o modal
-const isExpenseModalOpen = ref(false)
+  const isExpenseModalOpen = ref(false)
+  const isIncomeModalOpen = ref(false)
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  // 🚨 ATENÇÃO: Cole aqui o UUID real do seu usuário do banco de dados!
+  const USER_ID = 'f273b341-bd6b-4306-a004-155d2f2e6716' 
+
+  // Função que formata o dinheiro
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  }
+
+  // A MÁGICA DA INTEGRAÇÃO COMEÇA AQUI
+  const loadDashboardData = async () => {
+    try {
+      // 1. Vai no Java e busca TODAS as contas do utilizador
+      const accountsResponse = await api.get(`/accounts/user/${USER_ID}`)
+      const accounts = accountsResponse.data
+      
+      // Usa o reduce para iterar por todas as contas e somar os saldos
+      // O '0' no final é o valor inicial da soma
+      const totalBalance = accounts.reduce((acumulador: number, account: any) => {
+        return acumulador + account.balance
+      }, 0)
+
+      currentBalance.value = totalBalance
+
+      // 2. Vai no Java e busca TODAS as transações do utilizador
+      const transactionsResponse = await api.get(`/transactions/user/${USER_ID}`)
+      const transactions = transactionsResponse.data
+
+      // 3. O Frontend faz a matemática para separar o que é Receita e o que é Despesa
+      let incomeTotal = 0
+      let expenseTotal = 0
+
+      transactions.forEach((t: any) => {
+        // Como tipamos no Java, a API devolve exatamente as strings do Enum!
+        if (t.type === 'INCOME') {
+          incomeTotal += t.amount
+        } else if (t.type === 'EXPENSE') {
+          expenseTotal += t.amount
+        }
+      })
+
+      // Atualiza a tela com os valores reais calculados
+      monthlyIncome.value = incomeTotal
+      monthlyExpense.value = expenseTotal
+
+    } catch (error) {
+      console.error("Erro ao buscar dados da API:", error)
+      alert("Não foi possível conectar ao servidor Java. Ele está ligado?")
+    }
+  }
+
+  // onMounted é acionado automaticamente pelo Vue assim que a tela é desenhada
+  onMounted(() => {
+    loadDashboardData()
+  })
+
+  // 🚨 ATENÇÃO: Pegue os UUIDs reais no seu DBeaver para o teste funcionar!
+const ACCOUNT_ID = 'f70ef4b3-58da-498a-9e9f-8ea06b3519af'
+const CATEGORY_EXPENSE_ID = '47464c4d-f214-4984-89cb-c17d4e0a6951'
+const CATEGORY_INCOME_ID = 'd752d35f-631d-4147-879b-a0938ef94ac4'
+
+const handleSaveExpense = async (expenseData: any) => {
+  try {
+    // Monta o pacote de dados exatamente como o Java espera (o seu DTO)
+    const payload = {
+      userId: USER_ID,
+      accountId: ACCOUNT_ID,
+      categoryId: CATEGORY_EXPENSE_ID,
+      type: 'EXPENSE',
+      amount: expenseData.amount,
+      description: expenseData.description,
+      transactionDate: expenseData.date,
+      status: 'PAID'
+    }
+
+    // Dispara o POST para o Spring Boot!
+    await api.post('/transactions', payload)
+
+    isExpenseModalOpen.value = false
+    
+    // A MÁGICA: Recarrega o dashboard inteiro para buscar os novos saldos atualizados pelo Java
+    await loadDashboardData() 
+  } catch (error) {
+    console.error("Erro ao salvar despesa:", error)
+    alert("Erro ao salvar. Verifique se o backend está rodando e os UUIDs estão corretos.")
+  }
 }
 
-// Função que será chamada quando o modal emitir o evento 'save'
-const handleSaveExpense = (expenseData: any) => {
-  console.log('Despesa recebida do modal:', expenseData)
-  
-  // Simula a adição da despesa na interface (subtrai do saldo e soma na despesa)
-  currentBalance.value -= expenseData.amount
-  monthlyExpense.value += expenseData.amount
-  
-  // Fecha o modal após salvar
-  isExpenseModalOpen.value = false
+const handleSaveIncome = async (incomeData: any) => {
+  try {
+    const payload = {
+      userId: USER_ID,
+      accountId: ACCOUNT_ID,
+      categoryId: CATEGORY_INCOME_ID,
+      type: 'INCOME',
+      amount: incomeData.amount,
+      description: incomeData.description,
+      transactionDate: incomeData.date,
+      status: 'PAID'
+    }
+
+    await api.post('/transactions', payload)
+
+    isIncomeModalOpen.value = false
+    await loadDashboardData() // Recarrega os dados fresquinhos do banco
+  } catch (error) {
+    console.error("Erro ao salvar receita:", error)
+  }
 }
 </script>
 
@@ -56,8 +151,11 @@ const handleSaveExpense = (expenseData: any) => {
       </div>
     </section>
 
-    <section class="actions-section">
+  <section class="actions-section">
       <div class="action-buttons">
+        <button class="btn-action btn-income" @click="isIncomeModalOpen = true">
+          + Nova Receita
+        </button>
         <button class="btn-action btn-expense" @click="isExpenseModalOpen = true">
           - Nova Despesa
         </button>
@@ -68,6 +166,12 @@ const handleSaveExpense = (expenseData: any) => {
       :isOpen="isExpenseModalOpen" 
       @close="isExpenseModalOpen = false"
       @save="handleSaveExpense"
+    />
+
+    <IncomeModal 
+      :isOpen="isIncomeModalOpen" 
+      @close="isIncomeModalOpen = false"
+      @save="handleSaveIncome"
     />
   </div>
 </template>
@@ -159,4 +263,6 @@ const handleSaveExpense = (expenseData: any) => {
 .btn-action { padding: 1rem 2rem; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; border: none; color: white; transition: transform 0.2s; }
 .btn-action:active { transform: scale(0.95); }
 .btn-expense { background-color: #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4); }
+/* Adicione junto ao .btn-expense que já criamos */
+.btn-income { background-color: #2ed573; box-shadow: 0 4px 15px rgba(46, 213, 115, 0.4); }
 </style>
