@@ -1,18 +1,30 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import ExpenseModal from '../components/ExpenseModal.vue' // Importa o componente filho
 
-// 1. Dados Simulados (Mock Data) - Serão substituídos pela API do Java depois
+// Dados do Dashboard (Mock)
 const userName = ref('Adrielle')
 const currentBalance = ref(6500.50)
 const monthlyIncome = ref(5000.00)
 const monthlyExpense = ref(1200.00)
 
-// 2. Função Nativa do JS para formatar dinheiro no padrão Brasileiro (R$)
+// Estado para controlar o modal
+const isExpenseModalOpen = ref(false)
+
 const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { 
-    style: 'currency', 
-    currency: 'BRL' 
-  }).format(value)
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+// Função que será chamada quando o modal emitir o evento 'save'
+const handleSaveExpense = (expenseData: any) => {
+  console.log('Despesa recebida do modal:', expenseData)
+  
+  // Simula a adição da despesa na interface (subtrai do saldo e soma na despesa)
+  currentBalance.value -= expenseData.amount
+  monthlyExpense.value += expenseData.amount
+  
+  // Fecha o modal após salvar
+  isExpenseModalOpen.value = false
 }
 </script>
 
@@ -45,8 +57,18 @@ const formatCurrency = (value: number) => {
     </section>
 
     <section class="actions-section">
-      <p><em>(Em breve: Botões de Nova Receita e Nova Despesa virão aqui)</em></p>
+      <div class="action-buttons">
+        <button class="btn-action btn-expense" @click="isExpenseModalOpen = true">
+          - Nova Despesa
+        </button>
+      </div>
     </section>
+
+    <ExpenseModal 
+      :isOpen="isExpenseModalOpen" 
+      @close="isExpenseModalOpen = false"
+      @save="handleSaveExpense"
+    />
   </div>
 </template>
 
@@ -133,4 +155,8 @@ const formatCurrency = (value: number) => {
   border-radius: 8px;
   color: #666;
 }
+.action-buttons { display: flex; gap: 1rem; justify-content: center; }
+.btn-action { padding: 1rem 2rem; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; border: none; color: white; transition: transform 0.2s; }
+.btn-action:active { transform: scale(0.95); }
+.btn-expense { background-color: #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4); }
 </style>
