@@ -3,7 +3,9 @@
   import { api } from '../services/api' // Importamos o nosso "telefone" para o Java
   import ExpenseModal from '../components/ExpenseModal.vue'
   import IncomeModal from '../components/IncomeModal.vue'
-
+  import { useRouter } from 'vue-router'
+  const router = useRouter()
+  
   // Estado inicial zerado (ou carregando)
   const userName = ref('Usuário') // Em breve buscaremos o nome também
   const currentBalance = ref(0)
@@ -151,14 +153,14 @@ const handleSaveIncome = async (incomeData: any) => {
       </div>
     </section>
 
-  <section class="actions-section">
+    <section class="actions-section">
       <div class="action-buttons">
-        <button class="btn-action btn-income" @click="isIncomeModalOpen = true">
-          + Nova Receita
-        </button>
-        <button class="btn-action btn-expense" @click="isExpenseModalOpen = true">
-          - Nova Despesa
-        </button>
+        <button class="btn-action btn-income" @click="isIncomeModalOpen = true">+ Nova Receita</button>
+        <button class="btn-action btn-expense" @click="isExpenseModalOpen = true">- Nova Despesa</button>
+        
+        <button class="btn-action btn-manage" @click="router.push('/accounts')">⚙️ Gerir Contas</button>
+
+        <button class="btn-action btn-manage-cat" @click="router.push('/categories')">🏷️ Categorias</button>
       </div>
     </section>
 
@@ -265,4 +267,7 @@ const handleSaveIncome = async (incomeData: any) => {
 .btn-expense { background-color: #ff4757; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4); }
 /* Adicione junto ao .btn-expense que já criamos */
 .btn-income { background-color: #2ed573; box-shadow: 0 4px 15px rgba(46, 213, 115, 0.4); }
+/* Adicione esta cor para o novo botão */
+.btn-manage { background-color: #3742fa; box-shadow: 0 4px 15px rgba(55, 66, 250, 0.4); }
+.btn-manage-cat { background-color: #ffa502; box-shadow: 0 4px 15px rgba(255, 165, 2, 0.4); }
 </style>
