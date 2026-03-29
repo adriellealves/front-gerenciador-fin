@@ -7,10 +7,11 @@
 
   
   const router = useRouter()
-  const USER_ID = 'f273b341-bd6b-4306-a004-155d2f2e6716'   // 🚨 ATENÇÃO: Cole aqui o UUID real
+const USER_ID = localStorage.getItem('@CoreFinancas:userId')
   
    // Estado inicial zerado (ou carregando)
-  const userName = ref('Usuário') // Em breve buscaremos o nome também
+  // Pega o nome do banco, ou usa 'Usuário' como fallback
+const userName = ref(localStorage.getItem('@CoreFinancas:userName') || 'Usuário')
   const currentBalance = ref(0)
   const monthlyIncome = ref(0)
   const monthlyExpense = ref(0)
@@ -23,7 +24,12 @@
   const categoriesList = ref<any[]>([])
   const recentTransactions = ref<any[]>([])
 
-  // NOVA FUNÇÃO COMPUTADA: Filtra as transações na hora, dependendo da aba clicada!
+  const handleLogout = () => {
+  localStorage.clear() // Limpa tudo (token, id, nome)
+  router.push('/login') // Manda de volta para o login
+}
+
+// NOVA FUNÇÃO COMPUTADA: Filtra as transações na hora, dependendo da aba clicada!
 const filteredTransactions = computed(() => {
   if (activeTab.value === 'REALIZADAS') {
     // Filtra só o que tem status PAID
@@ -169,7 +175,7 @@ const handleSaveIncome = async (incomeData: any) => {
         <br>
         <p>Aqui está o resumo das suas finanças.</p>
       </div>
-      <button class="btn-logout">Sair</button>
+      <button class="btn-logout" @click="handleLogout">Sair</button>
     </header>
 
     <section class="summary-cards">

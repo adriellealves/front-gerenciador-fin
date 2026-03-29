@@ -4,7 +4,7 @@ import { api } from '../services/api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const USER_ID = 'f273b341-bd6b-4306-a004-155d2f2e6716' // 🚨 Mantenha o seu UUID aqui!
+const USER_ID = localStorage.getItem('@CoreFinancas:userId') 
 
 const categories = ref<any[]>([])
 

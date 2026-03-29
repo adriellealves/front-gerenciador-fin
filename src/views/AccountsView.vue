@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 // 🚨 ATENÇÃO: Cole aqui o mesmo UUID do seu utilizador!
-const USER_ID = 'f273b341-bd6b-4306-a004-155d2f2e6716'
+const USER_ID = localStorage.getItem('@CoreFinancas:userId')
 
 // Estado da lista de contas
 const accounts = ref<any[]>([])
