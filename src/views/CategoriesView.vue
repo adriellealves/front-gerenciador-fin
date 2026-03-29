@@ -8,6 +8,31 @@ const USER_ID = 'f273b341-bd6b-4306-a004-155d2f2e6716' // 🚨 Mantenha o seu UU
 
 const categories = ref<any[]>([])
 
+// Computed helpers para separar Despesas/Receitas
+type CategoryType = 'EXPENSE' | 'INCOME'
+
+const buildCategoryTree = (type: CategoryType) => {
+  const filtered = categories.value.filter(cat => cat.type === type)
+
+  const byId = new Map<string, any>()
+
+  filtered.forEach(cat => {
+    byId.set(cat.id, { ...cat, children: [] as any[] })
+  })
+
+  byId.forEach(cat => {
+    if (cat.parentId && byId.has(cat.parentId)) {
+      const parent = byId.get(cat.parentId)
+      parent.children.push(cat)
+    }
+  })
+
+  return Array.from(byId.values()).filter(cat => !cat.parentId || !byId.has(cat.parentId))
+}
+
+const expenseCategoriesTree = computed(() => buildCategoryTree('EXPENSE'))
+const incomeCategoriesTree = computed(() => buildCategoryTree('INCOME'))
+
 // NOVA VARIÁVEL: Guarda o ID da categoria que estamos a editar (null se for nova)
 const editingId = ref<string | null>(null)
 
@@ -161,19 +186,90 @@ onMounted(() => {
         <div v-if="categories.length === 0" class="empty-state">
           Não tem categorias registadas.
         </div>
-        <div class="categories-grid" v-else>
-          <div v-for="category in categories" :key="category.id" class="category-card" :style="{ borderLeftColor: category.colorHex }">
-            <div class="cat-header">
-              <div class="color-dot" :style="{ backgroundColor: category.colorHex }"></div>
-              <h3>{{ category.name }}</h3>
+        <div v-else class="categories-columns">
+          <div class="categories-group">
+            <h3 class="group-title">Despesas</h3>
+            <div v-if="expenseCategoriesTree.length === 0" class="empty-sub">Sem categorias de despesa.</div>
+            <div v-else class="categories-grid">
+              <div
+                v-for="category in expenseCategoriesTree"
+                :key="category.id"
+                class="category-card"
+                :style="{ borderLeftColor: category.colorHex }"
+              >
+                <div class="cat-header">
+                  <div class="color-dot" :style="{ backgroundColor: category.colorHex }"></div>
+                  <h3>{{ category.name }}</h3>
+                </div>
+                <div class="cat-details">
+                  <span class="badge expense">EXPENSE</span>
+                  <span class="main-badge">Categoria principal</span>
+                </div>
+
+                <div v-if="category.children && category.children.length" class="subcategories-list">
+                  <h4>Subcategorias</h4>
+                  <ul>
+                    <li v-for="sub in category.children" :key="sub.id" class="sub-item">
+                      <div class="sub-info">
+                        <span class="sub-color-dot" :style="{ backgroundColor: sub.colorHex }"></span>
+                        <span class="sub-name">{{ sub.name }}</span>
+                      </div>
+                      <div class="sub-actions">
+                        <button class="btn-edit small" @click="startEdit(sub)">✏️</button>
+                        <button class="btn-delete small" @click="deleteCategory(sub.id)">🗑️</button>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="card-actions">
+                  <button class="btn-edit" @click="startEdit(category)">✏️ Editar</button>
+                  <button class="btn-delete" @click="deleteCategory(category.id)">🗑️ Excluir</button>
+                </div>
+              </div>
             </div>
-            <div class="cat-details">
-              <span class="badge" :class="category.type.toLowerCase()">{{ category.type }}</span>
-              <span v-if="category.parentId" class="sub-badge">Subcategoria</span>
-            </div>
-            <div class="card-actions">
-              <button class="btn-edit" @click="startEdit(category)">✏️ Editar</button>
-              <button class="btn-delete" @click="deleteCategory(category.id)">🗑️ Excluir</button>
+          </div>
+
+          <div class="categories-group">
+            <h3 class="group-title">Receitas</h3>
+            <div v-if="incomeCategoriesTree.length === 0" class="empty-sub">Sem categorias de receita.</div>
+            <div v-else class="categories-grid">
+              <div
+                v-for="category in incomeCategoriesTree"
+                :key="category.id"
+                class="category-card"
+                :style="{ borderLeftColor: category.colorHex }"
+              >
+                <div class="cat-header">
+                  <div class="color-dot" :style="{ backgroundColor: category.colorHex }"></div>
+                  <h3>{{ category.name }}</h3>
+                </div>
+                <div class="cat-details">
+                  <span class="badge income">INCOME</span>
+                  <span class="main-badge">Categoria principal</span>
+                </div>
+
+                <div v-if="category.children && category.children.length" class="subcategories-list">
+                  <h4>Subcategorias</h4>
+                  <ul>
+                    <li v-for="sub in category.children" :key="sub.id" class="sub-item">
+                      <div class="sub-info">
+                        <span class="sub-color-dot" :style="{ backgroundColor: sub.colorHex }"></span>
+                        <span class="sub-name">{{ sub.name }}</span>
+                      </div>
+                      <div class="sub-actions">
+                        <button class="btn-edit small" @click="startEdit(sub)">✏️</button>
+                        <button class="btn-delete small" @click="deleteCategory(sub.id)">🗑️</button>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="card-actions">
+                  <button class="btn-edit" @click="startEdit(category)">✏️ Editar</button>
+                  <button class="btn-delete" @click="deleteCategory(category.id)">🗑️ Excluir</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -242,4 +338,90 @@ input, select { padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; }
 
 .btn-delete { color: #e74c3c; border-color: #fadbd8; }
 .btn-delete:hover { background: #fdedec; border-color: #e74c3c; }
+
+.categories-columns {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.categories-group {
+  flex: 1;
+}
+
+.group-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+}
+
+.empty-sub {
+  font-size: 0.9rem;
+  color: #747d8c;
+  font-style: italic;
+}
+
+.main-badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  background: #f1f2f6;
+  color: #2f3542;
+}
+
+.subcategories-list {
+  margin-top: 0.75rem;
+  border-top: 1px dashed #ecf0f1;
+  padding-top: 0.5rem;
+}
+
+.subcategories-list h4 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.8rem;
+  color: #636e72;
+}
+
+.subcategories-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sub-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.sub-info {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.sub-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.sub-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.btn-edit.small,
+.btn-delete.small {
+  padding: 0.2rem 0.35rem;
+  font-size: 0.7rem;
+}
+
+@media (max-width: 768px) {
+  .categories-columns {
+    flex-direction: column;
+  }
+}
 </style>

@@ -1,104 +1,83 @@
 <script setup lang="ts">
-  import { ref, onMounted } from 'vue'
-  import { api } from '../services/api' // Importamos o nosso "telefone" para o Java
+  import { ref, onMounted, computed } from 'vue'
+  import { api } from '../services/api'
+  import { useRouter } from 'vue-router'
   import ExpenseModal from '../components/ExpenseModal.vue'
   import IncomeModal from '../components/IncomeModal.vue'
-  import { useRouter } from 'vue-router'
-  const router = useRouter()
+
   
-  // Estado inicial zerado (ou carregando)
+  const router = useRouter()
+  const USER_ID = 'f273b341-bd6b-4306-a004-155d2f2e6716'   // 🚨 ATENÇÃO: Cole aqui o UUID real
+  
+   // Estado inicial zerado (ou carregando)
   const userName = ref('Usuário') // Em breve buscaremos o nome também
   const currentBalance = ref(0)
   const monthlyIncome = ref(0)
   const monthlyExpense = ref(0)
+  const activeTab = ref('REALIZADAS')
 
   const isExpenseModalOpen = ref(false)
   const isIncomeModalOpen = ref(false)
 
-  // 🚨 ATENÇÃO: Cole aqui o UUID real do seu usuário do banco de dados!
-  const USER_ID = 'f273b341-bd6b-4306-a004-155d2f2e6716' 
+  const accountsList = ref<any[]>([])
+  const categoriesList = ref<any[]>([])
+  const recentTransactions = ref<any[]>([])
+
+  // NOVA FUNÇÃO COMPUTADA: Filtra as transações na hora, dependendo da aba clicada!
+const filteredTransactions = computed(() => {
+  if (activeTab.value === 'REALIZADAS') {
+    // Filtra só o que tem status PAID
+    return recentTransactions.value.filter(t => t.status === 'PAID')
+  } else {
+    // Filtra só o que tem status PENDING
+    return recentTransactions.value.filter(t => t.status === 'PENDING')
+  }
+})
 
   // Função que formata o dinheiro
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
   }
+  const formatDate = (dateString: string) => {
+  // Como a data vem como YYYY-MM-DD, a gente divide e inverte
+  const [ano, mes, dia] = dateString.split('-')
+  return `${dia}/${mes}/${ano}`
+}
 
-  // A MÁGICA DA INTEGRAÇÃO COMEÇA AQUI
-  const loadDashboardData = async () => {
-    try {
-      // 1. Vai no Java e busca TODAS as contas do utilizador
-      const accountsResponse = await api.get(`/accounts/user/${USER_ID}`)
-      const accounts = accountsResponse.data
-      
-      // Usa o reduce para iterar por todas as contas e somar os saldos
-      // O '0' no final é o valor inicial da soma
-      const totalBalance = accounts.reduce((acumulador: number, account: any) => {
-        return acumulador + account.balance
-      }, 0)
-
-      currentBalance.value = totalBalance
-
-      // 2. Vai no Java e busca TODAS as transações do utilizador
-      const transactionsResponse = await api.get(`/transactions/user/${USER_ID}`)
-      const transactions = transactionsResponse.data
-
-      // 3. O Frontend faz a matemática para separar o que é Receita e o que é Despesa
-      let incomeTotal = 0
-      let expenseTotal = 0
-
-      transactions.forEach((t: any) => {
-        // Como tipamos no Java, a API devolve exatamente as strings do Enum!
-        if (t.type === 'INCOME') {
-          incomeTotal += t.amount
-        } else if (t.type === 'EXPENSE') {
-          expenseTotal += t.amount
-        }
-      })
-
-      // Atualiza a tela com os valores reais calculados
-      monthlyIncome.value = incomeTotal
-      monthlyExpense.value = expenseTotal
-
-    } catch (error) {
-      console.error("Erro ao buscar dados da API:", error)
-      alert("Não foi possível conectar ao servidor Java. Ele está ligado?")
-    }
+// NOVA FUNÇÃO: Decide se a transação está Paga ou Pendente com base na data
+const determineTransactionStatus = (transactionDate: string) => {
+  // Pega a data de hoje e formata para "YYYY-MM-DD" igual vem do calendário do HTML
+  const today = new Date().toISOString().split('T')[0];
+  
+  // No formato ISO (YYYY-MM-DD), podemos comparar strings diretamente!
+  // Se a data da transação for maior que hoje (futuro), é pendente.
+  if (transactionDate > today) {
+    return 'PENDING';
   }
+  return 'PAID';
+}
 
-  // onMounted é acionado automaticamente pelo Vue assim que a tela é desenhada
-  onMounted(() => {
-    loadDashboardData()
-  })
-
-  // 🚨 ATENÇÃO: Pegue os UUIDs reais no seu DBeaver para o teste funcionar!
-const ACCOUNT_ID = 'f70ef4b3-58da-498a-9e9f-8ea06b3519af'
-const CATEGORY_EXPENSE_ID = '47464c4d-f214-4984-89cb-c17d4e0a6951'
-const CATEGORY_INCOME_ID = 'd752d35f-631d-4147-879b-a0938ef94ac4'
-
+  // ATENÇÃO AQUI: Não há mais IDs chumbados. Usamos o que vem do 'expenseData' emitido pelo Modal!
 const handleSaveExpense = async (expenseData: any) => {
   try {
-    // Monta o pacote de dados exatamente como o Java espera (o seu DTO)
     const payload = {
       userId: USER_ID,
-      accountId: ACCOUNT_ID,
-      categoryId: CATEGORY_EXPENSE_ID,
+      accountId: expenseData.accountId,
+      categoryId: expenseData.categoryId,
       type: 'EXPENSE',
       amount: expenseData.amount,
       description: expenseData.description,
       transactionDate: expenseData.date,
-      status: 'PAID'
+      // 👇 AQUI ACONTECE A MÁGICA 👇
+      status: determineTransactionStatus(expenseData.date) 
     }
 
-    // Dispara o POST para o Spring Boot!
     await api.post('/transactions', payload)
-
     isExpenseModalOpen.value = false
-    
-    // A MÁGICA: Recarrega o dashboard inteiro para buscar os novos saldos atualizados pelo Java
     await loadDashboardData() 
   } catch (error) {
     console.error("Erro ao salvar despesa:", error)
-    alert("Erro ao salvar. Verifique se o backend está rodando e os UUIDs estão corretos.")
+    alert("Erro: O Saldo pode ser insuficiente ou houve falha na conexão.")
   }
 }
 
@@ -106,23 +85,80 @@ const handleSaveIncome = async (incomeData: any) => {
   try {
     const payload = {
       userId: USER_ID,
-      accountId: ACCOUNT_ID,
-      categoryId: CATEGORY_INCOME_ID,
+      accountId: incomeData.accountId,
+      categoryId: incomeData.categoryId,
       type: 'INCOME',
       amount: incomeData.amount,
       description: incomeData.description,
       transactionDate: incomeData.date,
-      status: 'PAID'
+      // 👇 AQUI ACONTECE A MÁGICA 👇
+      status: determineTransactionStatus(incomeData.date)
     }
 
     await api.post('/transactions', payload)
-
     isIncomeModalOpen.value = false
-    await loadDashboardData() // Recarrega os dados fresquinhos do banco
+    await loadDashboardData()
   } catch (error) {
     console.error("Erro ao salvar receita:", error)
   }
 }
+
+ const loadDashboardData = async () => {
+  try {
+    // 1. Busca Contas
+    const accountsResponse = await api.get(`/accounts/user/${USER_ID}`)
+    accountsList.value = accountsResponse.data
+    currentBalance.value = accountsList.value.reduce((acc: number, c: any) => acc + c.balance, 0)
+
+    // 2. Busca TODAS as Categorias
+    const categoriesResponse = await api.get(`/categories/user/${USER_ID}`)
+    categoriesList.value = categoriesResponse.data
+
+    // 3. Busca Transações para o somatório
+    const transactionsResponse = await api.get(`/transactions/user/${USER_ID}`)
+
+    // Pega todas as transações
+    const allTransactions = transactionsResponse.data
+    
+    // ORDENAÇÃO: Coloca as transações mais recentes (datas maiores) no topo da lista
+    allTransactions.sort((a: any, b: any) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime())
+    
+    // Guarda na variável da tela!
+    recentTransactions.value = allTransactions
+    let incomeTotal = 0
+    let expenseTotal = 0
+
+    
+    // Descobre qual é o mês e ano em que estamos AGORA (no mundo real)
+    const dataAtual = new Date()
+    const mesAtual = dataAtual.getMonth() + 1 // No JS, Janeiro é 0, então somamos 1
+    const anoAtual = dataAtual.getFullYear()
+
+    transactionsResponse.data.forEach((t: any) => {
+      // A data vem do Java no formato "YYYY-MM-DD" (Ex: "2026-06-15")
+      // Vamos fatiar (split) essa string para pegar o Ano e o Mês
+      const [anoTransacao, mesTransacao] = t.transactionDate.split('-')
+
+      // Só entra na soma se o ano E o mês forem iguais aos de hoje!
+      if (parseInt(anoTransacao) === anoAtual && parseInt(mesTransacao) === mesAtual) {
+        if (t.type === 'INCOME') incomeTotal += t.amount
+        else if (t.type === 'EXPENSE') expenseTotal += t.amount
+      }
+    })
+
+    monthlyIncome.value = incomeTotal
+    monthlyExpense.value = expenseTotal
+
+  } catch (error) {
+    console.error("Erro ao carregar dashboard:", error)
+  }
+}
+
+  // onMounted é acionado automaticamente pelo Vue assim que a tela é desenhada
+  onMounted(() => {
+    loadDashboardData()
+  })
+
 </script>
 
 <template>
@@ -164,14 +200,59 @@ const handleSaveIncome = async (incomeData: any) => {
       </div>
     </section>
 
+  <section class="transactions-section">
+      <div class="section-header">
+        <h2>Transações</h2>
+      </div>
+
+      <div class="tabs-container">
+        <button 
+          class="tab-button" 
+          :class="{ active: activeTab === 'REALIZADAS' }" 
+          @click="activeTab = 'REALIZADAS'"
+        >
+          Realizadas
+        </button>
+        <button 
+          class="tab-button" 
+          :class="{ active: activeTab === 'PENDENTES' }" 
+          @click="activeTab = 'PENDENTES'"
+        >
+          Pendentes
+        </button>
+      </div>
+      
+      <div v-if="filteredTransactions.length === 0" class="empty-state">
+        Nenhuma transação {{ activeTab === 'REALIZADAS' ? 'realizada' : 'pendente' }} encontrada.
+      </div>
+      
+      <div class="transaction-list" v-else>
+        <div v-for="t in filteredTransactions" :key="t.id" class="transaction-item">
+          <div class="t-info">
+            <strong>{{ t.description }}</strong>
+            <span>{{ formatDate(t.transactionDate) }}</span>
+            <span v-if="t.status === 'PENDING'" class="badge-pending">Pendente</span>
+          </div>
+          
+          <div class="t-amount" :class="t.type.toLowerCase()">
+            {{ t.type === 'INCOME' ? '+' : '-' }} {{ formatCurrency(t.amount) }}
+          </div>
+        </div>
+      </div>
+    </section>
+
     <ExpenseModal 
       :isOpen="isExpenseModalOpen" 
+      :accounts="accountsList"
+      :categories="categoriesList.filter(c => c.type === 'EXPENSE')"
       @close="isExpenseModalOpen = false"
       @save="handleSaveExpense"
     />
 
     <IncomeModal 
       :isOpen="isIncomeModalOpen" 
+      :accounts="accountsList"
+      :categories="categoriesList.filter(c => c.type === 'INCOME')"
       @close="isIncomeModalOpen = false"
       @save="handleSaveIncome"
     />
@@ -270,4 +351,124 @@ const handleSaveIncome = async (incomeData: any) => {
 /* Adicione esta cor para o novo botão */
 .btn-manage { background-color: #3742fa; box-shadow: 0 4px 15px rgba(55, 66, 250, 0.4); }
 .btn-manage-cat { background-color: #ffa502; box-shadow: 0 4px 15px rgba(255, 165, 2, 0.4); }
+/* Estilos da Lista de Transações */
+.transactions-section {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+  margin-top: 2rem;
+}
+
+.section-header h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+  color: #2c3e50;
+}
+
+.transaction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.transaction-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-radius: 8px;
+  background: #f8f9fa;
+  border-left: 4px solid #ddd;
+  transition: transform 0.2s;
+}
+
+.transaction-item:hover {
+  transform: translateX(5px);
+}
+
+.t-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  /* Força o alinhamento do texto para a esquerda, matando a herança do Vite */
+  text-align: left; 
+  /* Força os blocos a grudarem na esquerda do eixo secundário (horizontal) */
+  align-items: flex-start;
+}
+
+.t-info strong {
+  font-size: 1rem;
+  color: #333;
+}
+
+.t-info span {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+}
+
+.t-amount {
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.t-amount.income { color: #2ed573; }
+.t-amount.expense { color: #ff4757; }
+
+.badge-pending {
+  background: #f1c40f;
+  color: #fff !important;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem !important;
+  font-weight: bold;
+  width: fit-content;
+}
+
+.empty-state {
+  text-align: center;
+  color: #95a5a6;
+  padding: 2rem;
+  font-style: italic;
+}
+/* Estilos das Abas (Tabs) */
+.tabs-container {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #f1f2f6; /* Linha cinza clarinha dividindo */
+  padding-bottom: 0.5rem;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #a4b0be; /* Cinza claro para abas inativas */
+  cursor: pointer;
+  padding: 0.5rem 0.5rem;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.tab-button:hover {
+  color: #2f3542;
+}
+
+/* O segredo da aba ativa: cor escura e linha azul/destaque embaixo */
+.tab-button.active {
+  color: #2f3542;
+}
+
+.tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -0.65rem; /* Alinha com a borda do container */
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background-color: #3742fa; /* Azul (ou escolha a cor que preferir) */
+  border-radius: 3px 3px 0 0;
+}
 </style>

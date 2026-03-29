@@ -123,6 +123,8 @@ onMounted(() => {
           <div class="form-group">
             <label>Tipo de Conta</label>
             <select v-model="newAccount.type" required>
+              <option value="CREDIT_CARD">Cartão de Crédito</option>
+              <option value="CASH">Carteira</option>
               <option value="CHECKING">Conta Corrente</option>
               <option value="SAVINGS">Conta Poupança</option>
               <option value="INVESTMENT">Investimento</option>
