@@ -2,10 +2,15 @@ import { describe, it, expect, vi } from 'vitest'
 import { useTransactions } from '../composables/useTransactions'
 import type { Transaction } from '../types'
 
+const mocks = vi.hoisted(() => ({
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+}))
+
 vi.mock('../services/api', () => ({
   api: {
-    get: vi.fn(),
-    post: vi.fn(),
+    get: mocks.apiGet,
+    post: mocks.apiPost,
   },
 }))
 
@@ -94,6 +99,22 @@ describe('useTransactions', () => {
     it('converts YYYY-MM-DD to DD/MM/YYYY', () => {
       const { formatDate } = useTransactions('user1')
       expect(formatDate('2026-04-02')).toBe('02/04/2026')
+    })
+  })
+
+  describe('fetchTransactions', () => {
+    it('handles empty paginated responses without failing', async () => {
+      mocks.apiGet.mockResolvedValueOnce({
+        data: {
+          content: [],
+        },
+      })
+
+      const { fetchTransactions, transactions } = useTransactions('user1')
+      const result = await fetchTransactions()
+
+      expect(result).toEqual([])
+      expect(transactions.value).toEqual([])
     })
   })
 })

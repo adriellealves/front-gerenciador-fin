@@ -101,7 +101,7 @@ onMounted(loadAccounts)
 
           <div class="form-group">
             <label for="acc-balance">Saldo Atual (R$)</label>
-            <input id="acc-balance" type="number" step="0.01" v-model="newAccount.balance" required />
+            <input id="acc-balance" type="number" step="0.01" v-model.number="newAccount.balance" required />
             <small v-if="editingId" class="hint">⚠️ Dica: Prefira ajustar o saldo via transações.</small>
           </div>
 
@@ -121,7 +121,7 @@ onMounted(loadAccounts)
         <div class="accounts-grid" v-else role="list">
           <div v-for="account in accounts" :key="account.id" class="account-card" role="listitem">
             <div class="account-info">
-              <h3>{{ account.name }}</h3>
+              <h3>{{ account.name || 'Conta sem nome' }}</h3>
               <span class="badge" :aria-label="`Tipo: ${account.type}`">{{ account.type }}</span>
             </div>
             <div class="account-balance" :aria-label="`Saldo: ${formatCurrency(account.balance)}`">

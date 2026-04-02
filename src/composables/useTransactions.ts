@@ -2,6 +2,10 @@ import { ref } from 'vue'
 import { api } from '../services/api'
 import type { Transaction, TransactionType } from '../types'
 
+type PaginatedResponse<T> = {
+  content: T[]
+}
+
 /**
  * Composable para buscar e calcular dados de transações do usuário.
  */
@@ -9,12 +13,20 @@ export function useTransactions(userId: string | null) {
   const transactions = ref<Transaction[]>([])
   const isLoading = ref(false)
 
+  const extractTransactions = (data: Transaction[] | PaginatedResponse<Transaction> | unknown): Transaction[] => {
+    if (Array.isArray(data)) return data
+    if (data && typeof data === 'object' && 'content' in data && Array.isArray((data as PaginatedResponse<Transaction>).content)) {
+      return (data as PaginatedResponse<Transaction>).content
+    }
+    return []
+  }
+
   const fetchTransactions = async (): Promise<Transaction[]> => {
     if (!userId) return []
     isLoading.value = true
     try {
       const response = await api.get<Transaction[]>(`/transactions/user/${userId}`)
-      const sorted = [...response.data].sort(
+      const sorted = extractTransactions(response.data).sort(
         (a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime()
       )
       transactions.value = sorted

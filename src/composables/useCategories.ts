@@ -2,6 +2,10 @@ import { ref } from 'vue'
 import { api } from '../services/api'
 import type { Category, CategoryType, NewCategoryForm } from '../types'
 
+type PaginatedResponse<T> = {
+  content: T[]
+}
+
 /**
  * Composable para CRUD de categorias e construção da árvore hierárquica.
  */
@@ -9,13 +13,22 @@ export function useCategories(userId: string | null) {
   const categories = ref<Category[]>([])
   const isLoading = ref(false)
 
+  const extractCategories = (data: Category[] | PaginatedResponse<Category> | unknown): Category[] => {
+    if (Array.isArray(data)) return data
+    if (data && typeof data === 'object' && 'content' in data && Array.isArray((data as PaginatedResponse<Category>).content)) {
+      return (data as PaginatedResponse<Category>).content
+    }
+    return []
+  }
+
   const fetchCategories = async (): Promise<Category[]> => {
     if (!userId) return []
     isLoading.value = true
     try {
       const response = await api.get<Category[]>(`/categories/user/${userId}`)
-      categories.value = response.data
-      return response.data
+      const normalizedCategories = extractCategories(response.data)
+      categories.value = normalizedCategories
+      return normalizedCategories
     } finally {
       isLoading.value = false
     }
