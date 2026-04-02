@@ -244,8 +244,8 @@ onMounted(loadDashboardData)
 }
 
 .balance-card {
-  background: #2c3e50;
-  color: white;
+  background: #4588cb;
+  color: rgb(255, 255, 255);
 }
 
 .card h3 {
