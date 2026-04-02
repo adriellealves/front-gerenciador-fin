@@ -2,39 +2,36 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../services/api'
+import { useAuth } from '../composables/useAuth'
+import { useFormValidation } from '../composables/useFormValidation'
 
 const router = useRouter()
+const { saveSession } = useAuth()
+const { errors, clearErrors, validateEmail, validatePassword } = useFormValidation()
 
 const email = ref('')
 const password = ref('')
-const errorMessage = ref('')
 const isLoading = ref(false)
 
 const handleLogin = async () => {
+  clearErrors()
+  const emailOk = validateEmail(email.value)
+  const passOk = validatePassword(password.value)
+  if (!emailOk || !passOk) return
+
   try {
     isLoading.value = true
-    errorMessage.value = '' // Limpa erros anteriores
 
-    // 1. Envia as credenciais para o Java
     const response = await api.post('/auth/login', {
       email: email.value,
       password: password.value
     })
 
-    // 2. Se o Java aprovar, recebemos o Token e os dados do usuário
     const { token, userId, name } = response.data
-
-    // 3. Guardamos o "crachá" no cofre do navegador (LocalStorage)
-    localStorage.setItem('@CoreFinancas:token', token)
-    localStorage.setItem('@CoreFinancas:userId', userId)
-    localStorage.setItem('@CoreFinancas:userName', name)
-
-    // 4. Redireciona o usuário para o Dashboard
+    saveSession(token, userId, name)
     router.push('/')
-  } catch (error: any) {
-    console.error("Erro no login:", error)
-    // Se o Java devolver 400 (Bad Request), a senha ou email estão errados
-    errorMessage.value = "E-mail ou senha incorretos. Tente novamente."
+  } catch {
+    errors.value['form'] = 'E-mail ou senha incorretos. Tente novamente.'
   } finally {
     isLoading.value = false
   }
@@ -49,26 +46,42 @@ const handleLogin = async () => {
         <p>Faça login para gerir o seu dinheiro.</p>
       </div>
 
-      <form @submit.prevent="handleLogin" class="login-form">
+      <form @submit.prevent="handleLogin" class="login-form" novalidate>
         <div class="form-group">
-          <label>E-mail</label>
-          <input type="email" v-model="email" required placeholder="seu@email.com" />
+          <label for="login-email">E-mail</label>
+          <input
+            id="login-email"
+            type="email"
+            v-model="email"
+            placeholder="seu@email.com"
+            :aria-invalid="!!errors.email"
+            autocomplete="email"
+          />
+          <span v-if="errors.email" class="field-error" role="alert">{{ errors.email }}</span>
         </div>
 
         <div class="form-group">
-          <label>Senha</label>
-          <input type="password" v-model="password" required placeholder="••••••••" />
+          <label for="login-password">Senha</label>
+          <input
+            id="login-password"
+            type="password"
+            v-model="password"
+            placeholder="••••••••"
+            :aria-invalid="!!errors.password"
+            autocomplete="current-password"
+          />
+          <span v-if="errors.password" class="field-error" role="alert">{{ errors.password }}</span>
         </div>
 
-        <div v-if="errorMessage" class="error-message">
-          {{ errorMessage }}
+        <div v-if="errors.form" class="error-message" role="alert">
+          {{ errors.form }}
         </div>
 
-        <button type="submit" class="btn-login" :disabled="isLoading">
+        <button type="submit" class="btn-login" :disabled="isLoading" :aria-busy="isLoading">
           {{ isLoading ? 'Entrando...' : 'Entrar' }}
         </button>
       </form>
-      
+
       <div class="login-footer">
         <p>Ainda não tem conta? <router-link to="/register">Registre-se</router-link></p>
       </div>
@@ -77,13 +90,12 @@ const handleLogin = async () => {
 </template>
 
 <style scoped>
-/* Um design limpo e centralizado para a tela de login */
 .login-container {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f1f2f6; /* Fundo cinza clarinho */
+  background-color: #f1f2f6;
   font-family: sans-serif;
 }
 
@@ -101,11 +113,13 @@ const handleLogin = async () => {
 .login-header p { color: #747d8c; margin-top: 0.5rem; }
 
 .login-form { display: flex; flex-direction: column; gap: 1.2rem; }
-.form-group { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; }
+.form-group { display: flex; flex-direction: column; gap: 0.4rem; text-align: left; }
 .form-group label { font-weight: bold; color: #57606f; font-size: 0.9rem; }
 .form-group input { padding: 0.75rem; border: 1px solid #dfe4ea; border-radius: 6px; font-size: 1rem; transition: border-color 0.2s; }
 .form-group input:focus { outline: none; border-color: #3742fa; }
+.form-group input[aria-invalid="true"] { border-color: #ff4757; }
 
+.field-error { font-size: 0.8rem; color: #ff4757; }
 .error-message { background-color: #ffcccc; color: #ff4757; padding: 0.75rem; border-radius: 6px; font-size: 0.9rem; text-align: center; }
 
 .btn-login { background: #3742fa; color: white; border: none; padding: 0.85rem; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; }

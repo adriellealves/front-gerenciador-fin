@@ -1,32 +1,37 @@
 import axios from 'axios'
+import { useToast } from '../composables/useToast'
 
 export const api = axios.create({
-  baseURL: 'http://localhost:8080/api'
+  baseURL: import.meta.env.VITE_API_URL as string
 })
 
-// A MÁGICA: Interceptador de Requisições
 api.interceptors.request.use((config) => {
-  // 1. Vai ao cofre do navegador buscar o token
   const token = localStorage.getItem('@CoreFinancas:token')
-  
-  // 2. Se o token existir, injeta no cabeçalho (Header) da requisição
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
-  
+
   return config
 }, (error) => {
   return Promise.reject(error)
 })
 
-// (Opcional, mas recomendado) Interceptador de Respostas para tratar token expirado
 api.interceptors.response.use((response) => {
   return response
 }, (error) => {
-  // Se o backend devolver 403 (Proibido), o token expirou ou é inválido
-  if (error.response && error.response.status === 403) {
-    localStorage.clear() // Limpa o cofre
-    window.location.href = '/login' // Chuta o utilizador para a tela de login
+  const { showToast } = useToast()
+
+  if (error.response) {
+    const status = error.response.status
+
+    if (status === 401 || status === 403) {
+      localStorage.clear()
+      window.location.href = '/login'
+    } else if (status >= 500) {
+      showToast('Erro interno no servidor. Tente novamente mais tarde.', 'error')
+    }
   }
+
   return Promise.reject(error)
 })
