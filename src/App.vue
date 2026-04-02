@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import ToastNotification from './components/ToastNotification.vue'
 </script>
 
 <template>
   <router-view></router-view>
+  <ToastNotification />
 </template>
 
 <style scoped>
-/* Pode apagar o CSS de exemplo que estava aqui */
 </style>
